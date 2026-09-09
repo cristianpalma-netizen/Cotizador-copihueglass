@@ -1,0 +1,126 @@
+<!DOCTYPE html> Cotizador
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizador Profesional - IVA 19%</title>
+    <!-- Tailwind CSS para el diseño elegante -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- Alpine.js para la lógica avanzada y manejo de datos -->
+    <script defer src="https://jsdelivr.net"></script>
+    <style>
+        /* Estilos para ocultar elementos al imprimir o guardar en PDF */
+        @media print {
+            .no-imprimir, button, input[type="file"], .pestañas { display: none !important; }
+            body { background: white; padding: 0; }
+            .contenedor-app { border: none; box-shadow: none !important; max-w: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 p-4 md:p-8" x-data="cotizadorApp()">
+
+    <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden contenedor-app">
+        
+        <!-- Pestañas de Navegación (No se imprimen) -->
+        <div class="bg-slate-800 p-4 flex gap-4 pestañas no-imprimir">
+            <button @click="vista = 'cotizador'" :class="vista === 'cotizador' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'" class="px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer">📄 Crear Cotización</button>
+            <button @click="vista = 'inventario'" :class="vista === 'inventario' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'" class="px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer">📦 Mi Inventario</button>
+            <button @click="vista = 'historial'" :class="vista === 'historial' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'" class="px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer">📜 Historial</button>
+        </div>
+
+        <!-- VISTA 1: COTIZADOR -->
+        <div x-show="vista === 'cotizador'" class="p-6 md:p-10 space-y-8">
+            <!-- Datos de la Empresa y Logo -->
+            <div class="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-200 pb-6">
+                <div class="flex items-center gap-4">
+                    <div class="no-imprimir">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Logo Empresa</label>
+                        <input type="file" @change="subirLogo" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    </div>
+                    <template x-if="empresa.logo">
+                        <img :src="empresa.logo" class="h-20 w-20 object-contain rounded border p-1">
+                    </template>
+                </div>
+                <div class="text-right space-y-1">
+                    <input type="text" x-model="empresa.nombre" class="text-xl font-bold text-slate-800 text-right border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none w-64">
+                    <input type="text" x-model="empresa.contacto" class="text-sm text-slate-500 text-right block border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none w-64 ml-auto">
+                </div>
+            </div>
+
+            <!-- Datos del Cliente y Folio -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-xl border border-slate-100">
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Datos del Cliente</h3>
+                    <input type="text" x-model="cotizacion.cliente" placeholder="Nombre de la empresa o cliente" class="w-full bg-white border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="email" x-model="cotizacion.correo" placeholder="correo@cliente.com" class="w-full bg-white border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="space-y-3 md:text-right flex flex-col justify-between items-end">
+                    <div>
+                        <span class="text-sm font-bold text-slate-400 uppercase tracking-wider block">Cotización N°</span>
+                        <span class="text-2xl font-black text-blue-600" x-text="cotizacion.id"></span>
+                    </div>
+                    <div>
+                        <label class="text-sm text-slate-500 mr-2">Fecha Emisión:</label>
+                        <input type="date" x-model="cotizacion.fecha" class="border border-slate-200 p-1.5 rounded-lg text-sm bg-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Ítems Dinámica -->
+            <div>
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-slate-300 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                            <th class="py-3 px-2">Producto / Servicio</th>
+                            <th class="py-3 px-2 w-24 text-center">Cant.</th>
+                            <th class="py-3 px-2 w-36 text-right">Precio Unit.</th>
+                            <th class="py-3 px-2 w-36 text-right">Subtotal</th>
+                            <th class="py-3 px-2 w-12 text-center no-imprimir"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(item, index) in cotizacion.items" :key="index">
+                            <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                <td class="py-3 px-2">
+                                    <select @change="cargarDesdeInventario(index, $event.target.value)" class="w-full bg-transparent border-b border-transparent hover:border-slate-200 p-1 outline-none text-sm text-slate-700">
+                                        <option value="">-- Seleccionar del Inventario --</option>
+                                        <template x-for="p in inventario" :key="p.id">
+                                            <option :value="p.id" x-text="p.nombre" :selected="item.productoId == p.id"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-model="item.descripcion" placeholder="Descripción personalizada..." class="w-full text-xs text-slate-400 mt-1 bg-transparent outline-none px-1">
+                                </td>
+                                <td class="py-3 px-2"><input type="number" x-model.number="item.cantidad" min="1" class="w-full border border-slate-200 p-1 rounded text-center text-sm"></td>
+                                <td class="py-3 px-2"><input type="number" x-model.number="item.precio" min="0" class="w-full border border-slate-200 p-1 rounded text-right text-sm"></td>
+                                <td class="py-3 px-2 text-right font-semibold text-slate-700 text-sm" x-text="'$' + formatearNumero(item.cantidad * item.precio)"></td>
+                                <td class="py-3 px-2 text-center no-imprimir"><button @click="eliminarItem(index)" class="text-red-400 hover:text-red-600 font-bold cursor-pointer">&times;</button></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <button @click="agregarItem()" class="mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-4 rounded-lg transition-colors cursor-pointer no-imprimir">+ Agregar Ítem</button>
+            </div>
+
+            <!-- Datos de Pago y Totales -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-200">
+                <!-- Datos Bancarios Ajustables -->
+                <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-1">
+                    <h4 class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Datos para Transferencia</h4>
+                    <input type="text" x-model="empresa.banco" class="w-full bg-transparent text-xs text-slate-700 font-medium outline-none border-b border-transparent hover:border-slate-200 focus:border-blue-400">
+                    <input type="text" x-model="empresa.cuenta" class="w-full bg-transparent text-xs text-slate-700 font-medium outline-none border-b border-transparent hover:border-slate-200 focus:border-blue-400">
+                    <input type="text" x-model="empresa.rut" class="w-full bg-transparent text-xs text-slate-700 font-medium outline-none border-b border-transparent hover:border-slate-200 focus:border-blue-400">
+                </div>
+
+                <!-- Resumen Monetario -->
+                <div class="flex flex-col items-end space-y-2">
+                    <div class="w-64 text-sm space-y-1.5 text-slate-600">
+                        <div class="flex justify-between"><span>Subtotal Neto:</span><span class="font-medium" x-text="'$' + formatearNumero(obtenerSubtotal())"></span></div>
+                        <div class="flex justify-between"><span>Impuesto (19% IVA):</span><span class="font-medium" x-text="'$' + formatearNumero(obtenerIva())"></span></div>
+                        <div class="flex justify-between text-lg font-black text-slate-800 pt-2 border-t"><span>Total Final:</span><span class="text-blue-600" x-text="'$' + formatearNumero(obtenerTotal())"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="flex flex-col sm:flex-row justify-between gap-4 no-imprimir pt-4 border-t">
+                <!-- Botón de reinicio rápido -->
